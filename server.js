@@ -104,6 +104,13 @@ function getSocket(id) {
 }
 
 // ── Game Flow ─────────────────────────────────────────────────────────────────
+
+function updateScoreboards(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return;
+  io.to(roomCode).emit('scoreUpdate', room.players.map(p => ({ id: p.id, name: p.name, score: p.score })));
+}
+
 function startRound(roomCode) {
   const room = rooms[roomCode];
   if (!room) return;
@@ -281,6 +288,29 @@ io.on('connection', (socket) => {
     room.players.forEach(p => p.score = 0);
     io.to(socket.roomCode).emit('gameStarted', roomSummary(room));
     startRound(socket.roomCode);
+  });
+
+
+  socket.on('rejoinRoom', ({ roomCode, playerName }) => {
+    const room = rooms[roomCode];
+    if (!room) return socket.emit('error', 'Room not found');
+
+    // Re-attach socket to room
+    socket.join(roomCode);
+    socket.roomCode = roomCode;
+    socket.playerName = playerName;
+
+    // Update player's socket id in case it changed
+    const player = room.players.find(p => p.name === playerName);
+    if (player) {
+      player.id = socket.id;
+    } else {
+      // Player not in room (e.g. page refreshed before joining game), add them back
+      room.players.push({ id: socket.id, name: playerName, score: 0 });
+    }
+
+    socket.emit('roomJoined', roomSummary(room));
+    updateScoreboards(roomCode);
   });
 
   socket.on('wordChosen', ({ word }) => {
