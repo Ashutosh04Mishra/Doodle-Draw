@@ -9,7 +9,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Word Bank ────────────────────────────────────────────────────────────────
+// ── Word Bank ─────────────────────────────────────────────────────────────────
 const WORD_BANK = {
   animals: {
     easy:   ['cat','dog','fish','bird','lion','bear','duck','frog','cow','pig','hen','ant','bee','owl','fox'],
@@ -65,11 +65,10 @@ function getWordChoices(category = 'all', difficulty = 'all', count = 3) {
   return [...getWordPool(category, difficulty)].sort(() => Math.random() - 0.5).slice(0, count);
 }
 
-// ── REST API ─────────────────────────────────────────────────────────────────
+// ── REST API ──────────────────────────────────────────────────────────────────
 app.get('/api/words/random', (req, res) => {
   const { count = 3, difficulty = 'all', category = 'all' } = req.query;
-  const words = getWordChoices(category, difficulty, parseInt(count));
-  res.json({ words, count: words.length });
+  res.json({ words: getWordChoices(category, difficulty, parseInt(count)) });
 });
 app.get('/api/words/categories', (req, res) => res.json({ categories: Object.keys(WORD_BANK) }));
 
@@ -99,8 +98,12 @@ function roomSummary(room) {
   };
 }
 
-function getSocket(id) {
-  return io.sockets.sockets.get(id);
+function getSocket(id) { return io.sockets.sockets.get(id); }
+
+function updateScoreboards(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return;
+  io.to(roomCode).emit('scoreUpdate', room.players.map(p => ({ id: p.id, name: p.name, score: p.score })));
 }
 
 // ── Game Flow ─────────────────────────────────────────────────────────────────
@@ -130,9 +133,9 @@ function startRound(roomCode) {
 
 function broadcastWordInfo(roomCode) {
   const room = rooms[roomCode];
+  if (!room) return;
   const drawer = room.players[room.currentDrawerIndex];
   const hint = room.currentWord.split('').map(() => '_').join(' ');
-
   room.players.forEach(p => {
     const s = getSocket(p.id);
     if (!s) return;
@@ -161,9 +164,7 @@ function endRound(roomCode) {
   if (!room) return;
   clearInterval(room.timerInterval);
   const drawer = room.players[room.currentDrawerIndex];
-  if (drawer && room.guessedPlayerIds.length > 0) {
-    drawer.score += room.guessedPlayerIds.length * 50;
-  }
+  if (drawer && room.guessedPlayerIds.length > 0) drawer.score += room.guessedPlayerIds.length * 50;
   io.to(roomCode).emit('roundEnded', {
     word: room.currentWord,
     scores: room.players.map(p => ({ id: p.id, name: p.name, score: p.score }))
@@ -177,9 +178,7 @@ function nextTurn(roomCode) {
   room.currentDrawerIndex = (room.currentDrawerIndex + 1) % room.players.length;
   room.turnIndex++;
   if (room.turnIndex >= room.players.length) {
-    room.turnIndex = 0;
-    room.currentDrawerIndex = 0;
-    room.currentRound++;
+    room.turnIndex = 0; room.currentDrawerIndex = 0; room.currentRound++;
     if (room.currentRound > room.totalRounds) { endGame(roomCode); return; }
   }
   startRound(roomCode);
@@ -193,47 +192,76 @@ function endGame(roomCode) {
   io.to(roomCode).emit('gameEnded', { rankings: sorted.map(p => ({ name: p.name, score: p.score })) });
 }
 
-function handleLeave(socket) {
+// KEY FIX: only delete room if empty AND no one reconnects within 10 seconds
+function scheduleRoomCleanup(roomCode) {
+  const room = rooms[roomCode];
+  if (!room) return;
+  room.cleanupTimeout = setTimeout(() => {
+    const r = rooms[roomCode];
+    if (r && r.players.length === 0) {
+      clearInterval(r.timerInterval);
+      delete rooms[roomCode];
+      console.log(`Room ${roomCode} deleted`);
+      io.emit('publicRoomsUpdated', getPublicRooms());
+    }
+  }, 10000); // wait 10s before deleting
+}
+
+function handleLeave(socket, permanent = false) {
   const roomCode = socket.roomCode;
   if (!roomCode || !rooms[roomCode]) return;
   const room = rooms[roomCode];
-  room.players = room.players.filter(p => p.id !== socket.id);
-  if (room.players.length === 0) {
-    clearInterval(room.timerInterval);
-    delete rooms[roomCode];
-  } else {
-    if (room.host === socket.playerName) {
-      room.host = room.players[0].name;
-      io.to(roomCode).emit('hostChanged', { newHost: room.host });
-    }
-    io.to(roomCode).emit('playerLeft', {
-      playerName: socket.playerName,
-      players: room.players.map(p => ({ id: p.id, name: p.name, score: p.score }))
-    });
-    if (room.gameState === 'playing') {
-      if (room.currentDrawerIndex >= room.players.length) room.currentDrawerIndex = 0;
+
+  // Mark player as disconnected but keep them in the room
+  const player = room.players.find(p => p.id === socket.id);
+  if (player) {
+    if (permanent) {
+      // Full leave - remove player
+      room.players = room.players.filter(p => p.id !== socket.id);
+      io.to(roomCode).emit('playerLeft', {
+        playerName: socket.playerName,
+        players: room.players.map(p => ({ id: p.id, name: p.name, score: p.score }))
+      });
+    } else {
+      // Just disconnected (page navigation) - keep player, update socket id later on rejoin
+      player.disconnected = true;
     }
   }
+
+  if (room.host === socket.playerName && room.players.filter(p => !p.disconnected).length > 0) {
+    const newHost = room.players.find(p => !p.disconnected);
+    if (newHost) {
+      room.host = newHost.name;
+      io.to(roomCode).emit('hostChanged', { newHost: room.host });
+    }
+  }
+
+  if (room.players.filter(p => !p.disconnected).length === 0) {
+    scheduleRoomCleanup(roomCode);
+  }
+
   io.emit('publicRoomsUpdated', getPublicRooms());
 }
 
 // ── Socket Events ─────────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
+  console.log('Socket connected:', socket.id);
 
   socket.on('createRoom', ({ playerName }) => {
     const code = generateCode();
-    const player = { id: socket.id, name: playerName, score: 0 };
+    const player = { id: socket.id, name: playerName, score: 0, disconnected: false };
     rooms[code] = {
       code, host: playerName, players: [player], isPublic: false,
       gameState: 'waiting', settings: { rounds: 3, category: 'all', difficulty: 'all' },
       currentDrawerIndex: 0, currentWord: '', currentRound: 1, totalRounds: 3,
-      guessedPlayerIds: [], turnIndex: 0, timer: 60, timerInterval: null,
+      guessedPlayerIds: [], turnIndex: 0, timer: 60, timerInterval: null, cleanupTimeout: null,
     };
     socket.join(code);
     socket.roomCode = code;
     socket.playerName = playerName;
     socket.emit('roomCreated', roomSummary(rooms[code]));
     io.emit('publicRoomsUpdated', getPublicRooms());
+    console.log(`Room ${code} created by ${playerName}`);
   });
 
   socket.on('joinRoom', ({ roomCode, playerName }) => {
@@ -241,18 +269,57 @@ io.on('connection', (socket) => {
     if (!room) return socket.emit('error', 'Room not found');
     if (room.gameState !== 'waiting') return socket.emit('error', 'Game already in progress');
     if (room.players.length >= 10) return socket.emit('error', 'Room is full');
-    if (room.players.some(p => p.name === playerName)) return socket.emit('error', 'Name already taken');
-    const player = { id: socket.id, name: playerName, score: 0 };
-    room.players.push(player);
+    if (room.players.some(p => p.name === playerName && !p.disconnected)) return socket.emit('error', 'Name already taken');
+
+    // If player was disconnected, update their socket id
+    const existing = room.players.find(p => p.name === playerName);
+    if (existing) {
+      existing.id = socket.id;
+      existing.disconnected = false;
+    } else {
+      room.players.push({ id: socket.id, name: playerName, score: 0, disconnected: false });
+    }
+
+    // Cancel any pending cleanup
+    if (room.cleanupTimeout) { clearTimeout(room.cleanupTimeout); room.cleanupTimeout = null; }
+
     socket.join(roomCode);
     socket.roomCode = roomCode;
     socket.playerName = playerName;
     socket.emit('roomJoined', roomSummary(room));
     socket.to(roomCode).emit('playerJoined', {
-      player: { id: player.id, name: player.name, score: 0 },
+      player: { id: socket.id, name: playerName, score: existing?.score || 0 },
       players: room.players.map(p => ({ id: p.id, name: p.name, score: p.score }))
     });
     io.emit('publicRoomsUpdated', getPublicRooms());
+    console.log(`${playerName} joined room ${roomCode}`);
+  });
+
+  // Rejoin after page navigation (game page load)
+  socket.on('rejoinRoom', ({ roomCode, playerName }) => {
+    const room = rooms[roomCode];
+    if (!room) { console.log(`rejoin failed - room ${roomCode} not found`); return socket.emit('error', 'Room not found'); }
+
+    // Cancel any pending cleanup
+    if (room.cleanupTimeout) { clearTimeout(room.cleanupTimeout); room.cleanupTimeout = null; }
+
+    // Find player and update socket id
+    let player = room.players.find(p => p.name === playerName);
+    if (player) {
+      player.id = socket.id;
+      player.disconnected = false;
+    } else {
+      player = { id: socket.id, name: playerName, score: 0, disconnected: false };
+      room.players.push(player);
+    }
+
+    socket.join(roomCode);
+    socket.roomCode = roomCode;
+    socket.playerName = playerName;
+
+    socket.emit('roomJoined', roomSummary(room));
+    updateScoreboards(roomCode);
+    console.log(`${playerName} rejoined room ${roomCode}`);
   });
 
   socket.on('getPublicRooms', () => socket.emit('publicRoomsUpdated', getPublicRooms()));
@@ -311,10 +378,7 @@ io.on('connection', (socket) => {
     if (room.guessedPlayerIds.includes(player.id)) return;
 
     const isCorrect = guess.trim().toLowerCase() === room.currentWord.toLowerCase();
-    io.to(socket.roomCode).emit('chatMessage', {
-      text: `${player.name}: ${guess}`,
-      type: isCorrect ? 'correct' : 'guess'
-    });
+    io.to(socket.roomCode).emit('chatMessage', { text: `${player.name}: ${guess}`, type: isCorrect ? 'correct' : 'guess' });
 
     if (isCorrect) {
       room.guessedPlayerIds.push(player.id);
@@ -340,8 +404,12 @@ io.on('connection', (socket) => {
     startRound(socket.roomCode);
   });
 
-  socket.on('leaveRoom', () => handleLeave(socket));
-  socket.on('disconnect', () => handleLeave(socket));
+  socket.on('leaveRoom', () => handleLeave(socket, true));
+
+  socket.on('disconnect', () => {
+    console.log('Socket disconnected:', socket.id, socket.playerName);
+    handleLeave(socket, false); // not permanent - could be page navigation
+  });
 });
 
 const PORT = process.env.PORT || 3000;
