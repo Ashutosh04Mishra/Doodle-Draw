@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doodle Hunt - Game In Progress</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen active">
+        <!-- Game Header -->
+        <div class="game-header">
+            <div class="round-info">
+                <span id="current-round">Round 1</span> / <span id="total-rounds">4</span>
+                <div class="turn-info">Turn 1 of 4</div>
+            </div>
+            <div class="timer">
+                <span id="timer-display">60</span>s
+            </div>
+            <div class="current-drawer">
+                <span id="drawer-name">Loading...</span> is drawing
+            </div>
+            <button id="quit-game-btn" class="btn btn-danger">🚪 Quit Game</button>
+        </div>
+
+        <!-- Game Content -->
+        <div class="game-content">
+            <div class="drawing-area">
+                <div class="word-display">
+                    <span id="word-to-draw" class="hidden">Loading...</span>
+                    <span id="word-hint">_ _ _ _ _</span>
+                </div>
+                
+                <canvas id="drawing-canvas" width="800" height="600"></canvas>
+                
+                <div class="drawing-tools">
+                    <div class="tool-group">
+                        <button id="brush-tool" class="tool-btn active" data-tool="brush">🖌️</button>
+                        <button id="eraser-tool" class="tool-btn" data-tool="eraser">🧽</button>
+                        <button id="clear-canvas" class="tool-btn">🗑️</button>
+                    </div>
+                    
+                    <div class="color-palette">
+                        <div class="color-option active" data-color="#000000" style="background: #000000;"></div>
+                        <div class="color-option" data-color="#ff0000" style="background: #ff0000;"></div>
+                        <div class="color-option" data-color="#00ff00" style="background: #00ff00;"></div>
+                        <div class="color-option" data-color="#0000ff" style="background: #0000ff;"></div>
+                        <div class="color-option" data-color="#ffff00" style="background: #ffff00;"></div>
+                        <div class="color-option" data-color="#ff00ff" style="background: #ff00ff;"></div>
+                        <div class="color-option" data-color="#00ffff" style="background: #00ffff;"></div>
+                        <div class="color-option" data-color="#ffa500" style="background: #ffa500;"></div>
+                    </div>
+                    
+                    <div class="brush-size">
+                        <label>Size:</label>
+                        <input type="range" id="brush-size" min="1" max="20" value="3">
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="chat-area">
+                    <h3>Guesses</h3>
+                    <div id="chat-messages"></div>
+                    <div class="chat-input">
+                        <input type="text" id="guess-input" placeholder="Type your guess..." maxlength="50">
+                        <button id="send-guess" class="btn btn-primary">Send</button>
+                    </div>
+                </div>
+                
+                <div class="scoreboard">
+                    <h3>Scoreboard</h3>
+                    <div id="scoreboard-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quit Confirmation Modal -->
+        <div id="quit-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>Quit Game?</h3>
+                <p>Are you sure you want to quit the current game? Your progress will be lost.</p>
+                <div class="modal-buttons">
+                    <button id="confirm-quit" class="btn btn-danger">Yes, Quit</button>
+                    <button id="cancel-quit" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+        </div>
+        
+        <!-- Results Screen -->
+        <div id="results-screen" class="screen hidden">
+            <div class="container">
+                <h1>🏆 Game Results</h1>
+                <div class="final-rankings">
+                    <div class="podium">
+                        <div class="rank-item" id="rank-1">
+                            <div class="medal">🥇</div>
+                            <div class="player-info">
+                                <span class="player-name">-</span>
+                                <span class="player-score">0 pts</span>
+                            </div>
+                        </div>
+                        <div class="rank-item" id="rank-2">
+                            <div class="medal">🥈</div>
+                            <div class="player-info">
+                                <span class="player-name">-</span>
+                                <span class="player-score">0 pts</span>
+                            </div>
+                        </div>
+                        <div class="rank-item" id="rank-3">
+                            <div class="medal">🥉</div>
+                            <div class="player-info">
+                                <span class="player-name">-</span>
+                                <span class="player-score">0 pts</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="full-rankings">
+                        <h3>Final Rankings</h3>
+                        <div id="final-rankings-list"></div>
+                    </div>
+                </div>
+                
+                <div class="game-actions">
+                    <button id="play-again-btn" class="btn btn-primary">Play Again</button>
+                    <button id="back-to-lobby-btn" class="btn btn-secondary">Back to Lobby</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+</body>
+</html> 

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doodle Hunt - Multiplayer Drawing Game</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Lobby Screen -->
+        <div id="lobby-screen" class="screen active">
+            <div class="container">
+                <h1 class="game-title">🎨 Doodle Hunt</h1>
+                <p class="game-subtitle">Multiplayer Drawing & Guessing Game</p>
+                
+                <div class="lobby-content">
+                    <!-- Initial Setup - Choose to Create or Join -->
+                    <div id="initial-setup" class="setup-section">
+                        <div class="player-name-section">
+                            <h2>Enter Your Name</h2>
+                            <input type="text" id="player-name" placeholder="Enter your name" maxlength="20">
+                        </div>
+                        
+                        <div class="game-options">
+                            <div class="option-card">
+                                <h3>🎮 Create New Game</h3>
+                                <p>Start a new game room and invite friends</p>
+                                <button id="create-game-btn" class="btn btn-primary">Create Game</button>
+                            </div>
+                            
+                            <div class="option-card">
+                                <h3>🚪 Join Existing Game</h3>
+                                <input type="text" id="room-code" placeholder="Enter room code" maxlength="6">
+                                <button id="join-room-btn" class="btn btn-secondary">Join Room</button>
+                            </div>
+                        </div>
+                        
+                        <div class="available-rooms">
+                            <h3>Available Public Rooms</h3>
+                            <div id="public-rooms-list">
+                                <p class="no-rooms">No public rooms available</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Game Room Lobby -->
+                    <div id="room-lobby" class="setup-section hidden">
+                        <div class="room-info">
+                            <h2>Game Room: <span id="room-code-display">ABC123</span></h2>
+                            <p class="room-invite">Share this code with friends to join!</p>
+                            <div class="room-settings">
+                                <label>
+                                    <input type="checkbox" id="public-room-toggle"> Make room public
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="players-list">
+                            <h3>Players in Room (<span id="player-count">0</span>/10)</h3>
+                            <ul id="players-list"></ul>
+                        </div>
+                        
+</div>
+                        
+                        <div class="game-settings">
+                            <h4>⚙️ Game Settings</h4>
+                            <div class="round-selection">
+                                <label for="round-count">Number of Rounds:</label>
+                                <select id="round-count" class="round-selector">
+                                    <option value="1">1 Round</option>
+                                    <option value="3" selected>3 Rounds</option>
+                                    <option value="5">5 Rounds</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="game-controls">
+                            <button id="start-game-btn" class="btn btn-success" disabled>Start Game</button>
+                            <button id="leave-room-btn" class="btn btn-secondary">Leave Room</button>
+                            <p class="game-info">Need at least 2 players to start</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <div class="round-info">
+                    <span id="current-round">Round 1</span> / <span id="total-rounds">5</span>
+                    <div class="turn-info">Turn 1 of 4</div>
+                </div>
+                <div class="timer">
+                    <span id="timer-display">60</span>s
+                </div>
+                <div class="current-drawer">
+                    <span id="drawer-name">Player 1</span> is drawing
+                </div>
+            </div>
+
+            <div class="game-content">
+                <div class="drawing-area">
+                    <div class="word-display">
+                        <span id="word-to-draw" class="hidden">Loading...</span>
+                        <span id="word-hint">_ _ _ _ _</span>
+                    </div>
+                    
+                    <canvas id="drawing-canvas" width="800" height="600"></canvas>
+                    
+                    <div class="drawing-tools">
+                        <div class="tool-group">
+                            <button id="brush-tool" class="tool-btn active" data-tool="brush">🖌️</button>
+                            <button id="eraser-tool" class="tool-btn" data-tool="eraser">🧽</button>
+                            <button id="clear-canvas" class="tool-btn">🗑️</button>
+                        </div>
+                        
+                        <div class="color-palette">
+                            <div class="color-option active" data-color="#000000" style="background: #000000;"></div>
+                            <div class="color-option" data-color="#ff0000" style="background: #ff0000;"></div>
+                            <div class="color-option" data-color="#00ff00" style="background: #00ff00;"></div>
+                            <div class="color-option" data-color="#0000ff" style="background: #0000ff;"></div>
+                            <div class="color-option" data-color="#ffff00" style="background: #ffff00;"></div>
+                            <div class="color-option" data-color="#ff00ff" style="background: #ff00ff;"></div>
+                            <div class="color-option" data-color="#00ffff" style="background: #00ffff;"></div>
+                            <div class="color-option" data-color="#ffa500" style="background: #ffa500;"></div>
+                        </div>
+                        
+                        <div class="brush-size">
+                            <label>Size:</label>
+                            <input type="range" id="brush-size" min="1" max="20" value="3">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar">
+                    <div class="chat-area">
+                        <h3>Guesses</h3>
+                        <div id="chat-messages"></div>
+                        <div class="chat-input">
+                            <input type="text" id="guess-input" placeholder="Type your guess..." maxlength="50">
+                            <button id="send-guess" class="btn btn-primary">Send</button>
+                        </div>
+                    </div>
+                    
+                    <div class="scoreboard">
+                        <h3>Scoreboard</h3>
+                        <div id="scoreboard-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="results-screen" class="screen">
+            <div class="container">
+                <h1>🏆 Game Results</h1>
+                <div class="final-rankings">
+                    <div class="podium">
+                        <div class="rank-item" id="rank-1">
+                            <div class="medal">🥇</div>
+                            <div class="player-info">
+                                <span class="player-name">-</span>
+                                <span class="player-score">0 pts</span>
+                            </div>
+                        </div>
+                        <div class="rank-item" id="rank-2">
+                            <div class="medal">🥈</div>
+                            <div class="player-info">
+                                <span class="player-name">-</span>
+                                <span class="player-score">0 pts</span>
+                            </div>
+                        </div>
+                        <div class="rank-item" id="rank-3">
+                            <div class="medal">🥉</div>
+                            <div class="player-info">
+                                <span class="player-name">-</span>
+                                <span class="player-score">0 pts</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="full-rankings">
+                        <h3>Final Rankings</h3>
+                        <div id="final-rankings-list"></div>
+                    </div>
+                </div>
+                
+                <div class="game-actions">
+                    <button id="play-again-btn" class="btn btn-primary">Play Again</button>
+                    <button id="new-game-btn" class="btn btn-secondary">New Game</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="lobby.js"></script>
+</body>
+</html> 
