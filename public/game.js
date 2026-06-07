@@ -233,7 +233,14 @@ socket.on('gameStarted', room => {
   showScreen('game');
 });
 
-socket.on('error', msg => { alert(msg); window.location.href = 'index.html'; });
+socket.on('error', msg => {
+  console.error('Socket error:', msg);
+  // Only redirect if it's a critical error, not rejoin issues
+  if (msg === 'Room not found' && !roomCode) {
+    alert(msg);
+    window.location.href = 'index.html';
+  }
+});
 
 // ── Results ───────────────────────────────────────────────────────────────────
 function showResults(rankings) {
