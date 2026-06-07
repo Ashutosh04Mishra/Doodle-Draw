@@ -267,9 +267,17 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', ({ roomCode, playerName }) => {
     const room = rooms[roomCode];
     if (!room) return socket.emit('error', 'Room not found');
-    if (room.gameState !== 'waiting') return socket.emit('error', 'Game already in progress');
     if (room.players.length >= 10) return socket.emit('error', 'Room is full');
-    if (room.players.some(p => p.name === playerName && !p.disconnected)) return socket.emit('error', 'Name already taken');
+
+    const existingPlayer = room.players.find(p => p.name === playerName);
+    // Block new players if game already started
+    if (room.gameState !== 'waiting' && !existingPlayer) {
+      return socket.emit('error', 'Game already in progress');
+    }
+    // Block duplicate names only for genuinely new players
+    if (!existingPlayer && room.players.some(p => p.name === playerName && !p.disconnected)) {
+      return socket.emit('error', 'Name already taken');
+    }
 
     // If player was disconnected, update their socket id
     const existing = room.players.find(p => p.name === playerName);
