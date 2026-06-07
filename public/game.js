@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Tell server we're ready (re-join socket room)
-  socket.emit('joinRoom', { roomCode, playerName });
+  socket.emit('rejoinRoom', { roomCode, playerName });
 });
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
