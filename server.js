@@ -358,6 +358,37 @@ io.on('connection', (socket) => {
     startRound(socket.roomCode);
   });
 
+
+  socket.on('requestRoundState', () => {
+    const room = rooms[socket.roomCode];
+    if (!room || room.gameState !== 'playing') return;
+
+    const drawer = room.players[room.currentDrawerIndex];
+
+    // Resend round info to this specific socket
+    socket.emit('roundStarted', {
+      round: room.currentRound,
+      totalRounds: room.totalRounds,
+      drawerName: drawer.name,
+      drawerId: drawer.id,
+      turnIndex: room.turnIndex + 1,
+      totalTurns: room.players.length,
+    });
+
+    // Resend word info
+    if (room.currentWord) {
+      const isDrawer = drawer.id === socket.id;
+      const hint = room.currentWord.split('').map(() => '_').join(' ');
+      if (isDrawer) {
+        socket.emit('wordRevealed', { word: room.currentWord, isDrawer: true });
+      } else {
+        socket.emit('wordRevealed', { hint, wordLength: room.currentWord.length, isDrawer: false });
+      }
+      // Resend current timer
+      socket.emit('timerTick', { timer: room.timer });
+    }
+  });
+
   socket.on('wordChosen', ({ word }) => {
     const room = rooms[socket.roomCode];
     if (!room) return;
