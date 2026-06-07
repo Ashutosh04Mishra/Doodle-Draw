@@ -168,6 +168,10 @@ window.chooseWord = chooseWord;
 // ── Socket events ─────────────────────────────────────────────────────────────
 socket.on('roomJoined', room => {
   updateScoreboard(room.players);
+  // If game is already in progress, ask server to resend round info
+  if (room.gameState === 'playing') {
+    socket.emit('requestRoundState');
+  }
 });
 
 socket.on('roundStarted', ({ round, totalRounds, drawerName, drawerId, turnIndex, totalTurns }) => {
@@ -231,6 +235,7 @@ socket.on('gameEnded', ({ rankings }) => {
 socket.on('gameStarted', room => {
   updateScoreboard(room.players);
   showScreen('game');
+  // game.html is already loaded, roundStarted will follow shortly from server
 });
 
 socket.on('error', msg => {
